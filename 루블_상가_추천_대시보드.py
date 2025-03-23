@@ -1,77 +1,58 @@
-import streamlit as st
-import pandas as pd
-import re
-import folium
-from streamlit_folium import st_folium
 
-st.set_page_config(page_title="루블 상가 추천 대시보드", layout="wide")
+   import streamlit as st
+import hashlib
 
-# 엑셀 파일 로드
-uploaded_file = st.file_uploader("상가 매물 엑셀 파일 업로드", type=["xlsx"])
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+# ✔️ 비밀번호 설정
+PASSWORD = "jei_only"
 
-    # 필요한 열 추출 및 전처리
-    df = df[["단지", "건물유형", "층", "매매가", "비고", "부동산", "latitude", "longitude", "매물_URL"]].copy()
+# ✔️ Streamlit 세션 상태 초기화
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "device_id" not in st.session_state:
+    st.session_state["device_id"] = None
 
-    def parse_price(val):
-        if pd.isna(val): return None
-        val = str(val).replace(',', '')
-        match = re.search(r'(\d+)억\s*(\d+)?', val)
-        if match:
-            억 = int(match.group(1))
-            천 = int(match.group(2)) if match.group(2) else 0
-            return 억 * 10000 + 천
-        return int(re.sub(r'\D', '', val))
+# ✔️ 허용된 기기 해시값 목록 (PC 1대 + 모바일 1대만 등록)
+# 실제 운영 시, 이 값은 서버 DB에서 관리해야 더 안전함
+# ➤ 예시로 'john_pc'와 'john_mobile'의 해시값만 허용
+ALLOWED_DEVICE_HASHES = [
+    "e1faffb3e614e6c2fba74296962386b7",  # 예: john_pc
+    "912ec803b2ce49e4a541068d495ab570"   # 예: john_mobile
+]
 
-    def extract_yield(text):
-        if pd.isna(text): return None
-        match = re.search(r'연\s?(\d+(\.\d+)?)', text)
-        if match:
-            return float(match.group(1))
-        return None
+# ✔️ 기기 ID를 생성하는 함수 (브라우저 정보 기반)
+def generate_device_id():
+    # Streamlit에서 직접 기기 정보 가져오기 어려움
+    # ➤ 사용자에게 '기기 이름'을 한 번 입력받고 그걸 해시로 사용
+    return st.text_input("기기 등록 이름 (예: john_pc 또는 john_mobile)").strip()
 
-    def lubble_score(row):
-        score = 50
-        if row["추정_수익률(%)"] and row["추정_수익률(%)"] >= 6.0:
-            score += 20
-        if str(row["층"]) == "1":
-            score += 20
-        if "복합상가" in str(row["건물유형"]):
-            score += 10
-        return score
+# ✔️ 비밀번호 입력
+if not st.session_state["authenticated"]:
+    input_pwd = st.text_input("비밀번호를 입력하세요", type="password")
+    if input_pwd == PASSWORD:
+        st.session_state["authenticated"] = True
+        st.success("비밀번호 인증 완료 ✅")
+    else:
+        st.stop()
 
-    df["매매가_만원"] = df["매매가"].apply(parse_price)
-    df["추정_수익률(%)"] = df["비고"].apply(extract_yield)
-    df["루블점수"] = df.apply(lubble_score, axis=1)
-    df = df.sort_values(by="루블점수", ascending=False).reset_index(drop=True)
+# ✔️ 기기 인증
+if st.session_state["authenticated"]:
+    if not st.session_state["device_id"]:
+        input_device_name = generate_device_id()
 
-    st.title("\U0001F4CA 루블식 상가 추천 대시보드")
-    st.markdown("### \U0001F4CD 지도 기반 추천 상가 보기")
+        if input_device_name:
+            device_hash = hashlib.md5(input_device_name.encode()).hexdigest()
+            st.session_state["device_id"] = device_hash
 
-    # 지도 시각화
-    center_lat = df["latitude"].mean()
-    center_lon = df["longitude"].mean()
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=14)
+            if device_hash in ALLOWED_DEVICE_HASHES:
+                st.success("접속 기기 인증 완료 ✅")
+            else:
+                st.error("등록되지 않은 기기입니다 ❌")
+                st.stop()
+    else:
+        if st.session_state["device_id"] not in ALLOWED_DEVICE_HASHES:
+            st.error("등록되지 않은 기기입니다 ❌")
+            st.stop()
 
-    for _, row in df.iterrows():
-        folium.Marker(
-            location=[row["latitude"], row["longitude"]],
-            tooltip=f"{row['단지']} | {row['매매가']} | 루블 {row['루블점수']}점",
-            popup=folium.Popup(f'<a href="{row["매물_URL"]}" target="_blank">매물 상세 보기</a>', max_width=200)
-        ).add_to(m)
-
-    st_folium(m, width=700, height=500)
-
-    st.markdown("---")
-    st.markdown("### \U0001F4DD 추천 매물 리스트")
-
-    for idx, row in df.iterrows():
-        with st.container():
-            st.markdown(f"**{row['단지']}** | {row['건물유형']} | {row['층']}층")
-            st.markdown(f"- 매매가: {row['매매가']}")
-            st.markdown(f"- 추정 수익률: {row['추정_수익률(%)']}%")
-            st.markdown(f"- 부동산: {row['부동산']}")
-            st.markdown(f"- **루블 점수**: {row['루블점수']}점")
-            st.markdown(f"[매물 링크 바로가기]({row['매물_URL']})")
-            st.markdown("---")
+# ✔️ 여기부터 본문 내용
+st.title("🎉 루블 상가 추천 대시보드")
+st.write("지정된 사용자만 접근 가능한 보안 페이지입니다.")
