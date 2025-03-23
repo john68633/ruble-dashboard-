@@ -2,59 +2,62 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-import hashlib
-import uuid
+import uuid, hashlib
 
-# ✅ 고정 비밀번호
+# ---------------------- 보안 인증 ----------------------
 PASSWORD = "jei_only"
+allowed_ids = ["c2cf7a8a6dd95e6e4f6c8f7b03b515f9"]
 
-# ✅ 등록된 PC/Mobile만 허용 (기기 ID 반드시 등록)
-allowed_ids = [
-    "c2cf7a8a6dd95e6e4f6c8f7b03b515f9",  # 👉 제이님 PC ID
-]
-
-# ✅ 현재 기기 고유값 가져오기
 device_id = hashlib.md5(uuid.getnode().to_bytes(6, 'big')).hexdigest()
+input_pwd = st.text_input("비밀번호를 입력하세요", type="password")
 
-# ✅ 인증
-input_pwd = st.text_input("🔒 비밀번호를 입력하세요", type="password")
 if input_pwd != PASSWORD or device_id not in allowed_ids:
     st.warning("접근 권한이 없습니다.")
     st.stop()
 else:
-    st.success("✅ 인증에 성공했습니다!")
+    st.success("인증에 성공했습니다!")
 
-# ✅ 파일 업로드
-uploaded_file = st.file_uploader("📂 분석할 상가 리스트 파일을 업로드하세요 (.xlsx)", type=["xlsx"])
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+# ---------------------- 제목 ----------------------
+st.title("🏪 루블 상가 추천 대시보드")
 
-    # ✅ 지도 초기화 (첫 번째 매물 기준 중심)
-    center_lat = df["latitude"].mean()
-    center_lon = df["longitude"].mean()
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=15)
+# ---------------------- 파일 업로드 ----------------------
+file = st.file_uploader("매물 엑셀 파일을 업로드하세요", type=["xlsx"])
+if file is not None:
+    df = pd.read_excel(file)
 
-    # ✅ 마커 추가
+    # ---------------- 지도 그리기 ----------------
+    st.subheader("📍 매물 지도 시각화")
+    map_center = [df['latitude'].mean(), df['longitude'].mean()]
+    m = folium.Map(location=map_center, zoom_start=15)
+
     for _, row in df.iterrows():
-        name = row["단지"]
-        lat = row["latitude"]
-        lon = row["longitude"]
-        desc = row["비고"]
-        url = row["매물_URL"]
-        
-        popup_html = f"""
-        <b>{name}</b><br>
-        {desc}<br>
-        <a href="{url}" target="_blank">매물 보기 🔗</a>
-        """
-
+        popup_text = f"<b>{row['단지']}</b><br>{row['현재업종']}<br>{row['비고']}"
         folium.Marker(
-            location=[lat, lon],
-            popup=popup_html,
-            tooltip=name,
-            icon=folium.Icon(color='blue', icon='info-sign')
+            location=[row['latitude'], row['longitude']],
+            popup=popup_text,
+            tooltip="매물 보기",
+            icon=folium.Icon(color="blue", icon="info-sign")
         ).add_to(m)
 
-    # ✅ 지도 출력
-    st_folium(m, width=800, height=600)
+    st_folium(m, width=700, height=500)
 
+    # ---------------- 매물 표시 ----------------
+    st.subheader("📋 매물 리스트 및 요약")
+
+    def evaluate_row(row):
+        score = 0
+        if row['수익률'] >= 6:
+            score += 2
+        elif row['수익률'] >= 4:
+            score += 1
+
+        if '역세권' in str(row['비고']):
+            score += 2
+        if row['전용평'] >= 30:
+            score += 1
+        return score
+
+    df['추천점수'] = df.apply(evaluate_row, axis=1)
+    df_sorted = df.sort_values(by='추천점수', ascending=False)
+
+    st.dataframe(df_sorted[['단지', '전용평', '매매가', '월세', '수익률', '현재업종', '비고', '추천점수']])
