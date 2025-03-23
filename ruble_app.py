@@ -3,6 +3,13 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 import hashlib, uuid
+# ✅ 비밀번호 & 허용된 기기 ID 목록
+PASSWORD = "jei_only"
+allowed_ids = [
+    "c2cf7a8a6dd95e6e4f6c8f7b03b515f9",  # 기존 PC
+    "5f3eafdfdec9e92337a1cb731c650a86",  # 이전 기기
+    "314ac74caaf70fc9ff885afed82a880d"   # ✅ 새 기기 추가!
+]
 
 # ✅ 비밀번호 & 허용된 기기 ID 목록
 PASSWORD = "jei_only"
