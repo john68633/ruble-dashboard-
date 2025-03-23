@@ -16,7 +16,8 @@ from streamlit_folium import st_folium
 PASSWORD = "jei_only"
 
 # ✅ 등록된 PC/Mobile만 허용
-allowed_ids = ["b2e0f2c8814ff5d04db73f2fc2972959"]  # 여기에 등록된 장비 ID만 허용
+allowed_ids = ["5f3eafdfdec9e92337a1cb731c650a86"]
+
 
 # ✅ 현재 장치 고유값 가져오기
 device_id = hashlib.md5(uuid.getnode().to_bytes(6, 'big')).hexdigest()
