@@ -9,9 +9,9 @@ from streamlit_folium import st_folium
 # -----------------------------
 PASSWORD = "jei_only"
 allowed_ids = [
-    "c2cf7a8a6dd95e6e4f6c8f7b03b515f9",  # 기존 등록된 PC
+    "c2cf7a8a6dd95e6e4f6c8f7b03b515f9",  # 기존 PC
     "5f3eafdfdec9e92337a1cb731c650a86",  # 추가 기기
-    "314ac74caaf70fc9ff885afed82a880d",  # 현재 접속 기기
+    "314ac74caaf70fc9ff885afed82a880d",  # 현재 기기
 ]
 
 device_id = hashlib.md5(uuid.getnode().to_bytes(6, 'big')).hexdigest()
@@ -36,21 +36,24 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
 
         # -----------------------------
-        # ✅ 3. 컬럼명 정리 및 영어 대응
+        # ✅ 3. 컬럼 정리 및 이름 통일
         # -----------------------------
         df.columns = df.columns.str.strip().str.replace("\n", "").str.replace(" ", "")
-        col_map = {
-            "Latitude": "위도", "longitude": "경도",
-            "lat": "위도", "lon": "경도",
-            "price": "가격", "Price": "가격",
-            "name": "이름", "Name": "이름",
-        }
-        df = df.rename(columns={col: col_map.get(col, col) for col in df.columns})
 
-        required_cols = ["위도", "경도"]
-        for col in required_cols:
-            if col not in df.columns:
-                raise KeyError(f"'{col}' 컬럼이 필요합니다.")
+        # 컬럼 매핑 (영문/한글 대응, 소문자 처리)
+        col_map = {
+            "lat": "위도", "latitude": "위도", "위도": "위도",
+            "lon": "경도", "lng": "경도", "longitude": "경도", "경도": "경도",
+            "name": "이름", "이름": "이름",
+            "price": "가격", "가격": "가격",
+            "info": "평가", "평가": "평가"
+        }
+        df = df.rename(columns={col: col_map.get(col.lower(), col) for col in df.columns})
+
+        # 필수 컬럼 체크
+        if "위도" not in df.columns or "경도" not in df.columns:
+            st.error("❌ 오류 발생: '위도'와 '경도' 컬럼이 필요합니다.")
+            st.stop()
 
         # -----------------------------
         # ✅ 4. 지도 시각화
@@ -64,8 +67,8 @@ if uploaded_file:
 
         for _, row in df.iterrows():
             name = row.get("이름", "매물")
-            price = row.get("가격", "")
-            info = row.get("평가", "")
+            price = row.get("가격", "가격 정보 없음")
+            info = row.get("평가", "평가 없음")
 
             popup_text = f"{name}<br>💰 {price}<br>📊 {info}"
             folium.Marker(
@@ -78,7 +81,7 @@ if uploaded_file:
         st_folium(m, width=700, height=500)
 
         # -----------------------------
-        # ✅ 5. 평가 테이블 출력
+        # ✅ 5. 매물 평가 테이블
         # -----------------------------
         st.subheader("📄 매물 평가표 보기")
         st.dataframe(df)
