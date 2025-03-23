@@ -1,3 +1,9 @@
+import uuid, hashlib
+import streamlit as st
+
+st.write("📟 현재 기기 ID:", hashlib.md5(uuid.getnode().to_bytes(6, 'big')).hexdigest())
+
+
 import streamlit as st
 import pandas as pd
 import re
